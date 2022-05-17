@@ -1,0 +1,214 @@
+import pygame
+import random
+import math
+import numpy as np
+import time
+
+
+
+
+def distance(u,v):
+    d = math.sqrt((u[0]-v[0])**2+(u[1]-v[1])**2)
+    return d
+
+cvariables = []
+
+for i in range(0,100000):
+    cvariables.append("c"+str(i))
+
+bvariables = []
+
+for i in range(0,100000):
+    bvariables.append("b"+str(i))
+
+pop = {}
+
+class Creature:
+    def __init__(self,size,reach,speed,capacity,health,decay,location,vision,target):
+        self.size = size
+        self.reach = reach
+        self.speed = speed
+        self.capacity = capacity
+        self.health = health
+        self.decay = decay
+        self.location = location
+        self.vision = vision
+        self.target = target
+
+    def wander(self):
+        movedx= False
+        while not movedx:
+            stepx = int(self.speed)*random.choice([-1,1])
+            if (screenw-landw)/2 < self.location[0] + stepx < landw + (screenw-landw)/2:
+                self.location[0]+=stepx
+                movedx = True
+        movedy= False
+        while not movedy:
+            stepy = int(self.speed)*random.choice([-1,1])
+            if (screenh-landh)/2 < self.location[1] + stepy < landh + (screenh-landh)/2:
+                self.location[1]+=stepy
+                movedy = True
+
+
+    def pursue(self):
+        if distance(self.location,self.target.location) != 0:
+            try:
+                if distance(self.location,self.target.location) > self.speed:
+                    pursx = int(math.floor(self.speed*(self.target.location[0]-self.location[0])/distance(self.location,self.target.location)))
+                    pursy = int(math.floor(self.speed*(self.target.location[1]-self.location[1])/distance(self.location,self.target.location)))
+                    self.location[0] += pursx
+                    self.location[1] += pursy
+                    hypot = math.sqrt(pursx**2 + pursy**2)
+                else:
+                    self.location = self.target.location
+            except:
+                pass
+               
+
+class BerryBush:
+    def __init__(self,size,location,name):
+        self.size = size
+        self.location = location
+        self.name = name
+        
+
+clock = pygame.time.Clock()
+
+screenw = 800
+screenh = 800
+
+landw = 700
+landh = 700
+
+red = (200,0,0)
+white = (255,255,255)
+cream = (250,250,250)
+green = (0,150,0)
+black = (0,0,0)
+blue = (0,0,100)
+
+pygame.init()
+screen = pygame.display.set_mode((screenw,screenh))
+done = False
+
+pop[cvariables[0]] = Creature(5,1,3,400,400,-1,[int(.5*screenw),int(.5*screenh)],200,"none")
+cvariables.remove(cvariables[0])
+
+bushpop = {}
+
+bblocs = []
+
+for i in range(30):
+    match = False
+    while not match:
+        bbloc = [int(random.random()*landw+((screenw-landw)/2)),int(random.random()*landh+((screenh-landh)/2))]
+        if bbloc in bblocs:
+            pass
+        else:
+            bushpop[bvariables[0]] = BerryBush(400,bbloc,bvariables[0])
+            bvariables.remove(bvariables[0])
+            bblocs.append(bbloc)
+            match = True
+            
+
+frames = 0
+deaths = 0
+ready = False
+while not done:
+
+    frames += 1
+
+    screen.fill(blue)
+
+    pygame.draw.rect(screen,green,(int((screenw-landw)/2),int((screenh-landh)/2),landw,landh))
+
+    death = []
+
+    for i in bushpop.values():
+        pygame.draw.circle(screen,red,i.location,int(i.size/40))
+
+    for c in pop.keys():
+
+
+        pygame.draw.rect(screen,white,(pop[c].location[0]-10,pop[c].location[1]+10,20,4))
+        pygame.draw.rect(screen,red,(pop[c].location[0]-10,pop[c].location[1]+10,int(pop[c].health*20/pop[c].capacity),4))
+
+        pop[c].health += pop[c].decay
+
+        for i in bushpop.values():
+            if distance(i.location,pop[c].location) <= pop[c].vision:
+                if pop[c].target == "none":
+                    pop[c].target = i
+                else:
+                    if distance(i.location,pop[c].location) < distance(pop[c].target.location,pop[c].location):
+                        pop[c].target = i            
+
+        pygame.draw.circle(screen, cream, pop[c].location , pop[c].size)
+
+        if pop[c].target == "none":
+            pop[c].wander()
+        else:
+            if pop[c].location != pop[c].target.location:
+                if pop[c].health <= .5*pop[c].capacity:
+                    pop[c].pursue()
+                else:
+                    pop[c].wander()
+
+        if pop[c].target != "none":
+            if pop[c].location == pop[c].target.location:
+                
+                if pop[c].health < pop[c].capacity:
+                    pop[c].health += 4
+                    pop[c].target.size -= 4
+                    if pop[c].target.size <= 0:
+                        if pop[c].target.name in bushpop.keys():
+                            del bushpop[pop[c].target.name]
+                        pop[c].target = "none"
+
+                        
+        if pop[c].health <= 0:
+            deaths += 1
+            death.append(c)
+
+            
+    for d in death:
+        del pop[d]
+
+    reproduce = []
+
+    if frames % 50 == 0:
+        bushpop[bvariables[0]] = BerryBush(400,[int(random.random()*landw+((screenw-landw)/2)),int(random.random()*landh+((screenh-landh)/2))],bvariables[0])
+        bvariables.remove(bvariables[0])
+
+    if frames % 200 == 0:
+        for c in pop.keys():
+            if random.randrange(100) < 25:
+                reproduce.append(c)
+    for c in reproduce:
+        offspring = [pop[c].size + random.choice([-.1,0,.1]),pop[c].reach,round(pop[c].speed + random.choice([-.1,0,.1]),1),pop[c].size*100,400,pop[c].decay,[pop[c].location[0],pop[c].location[1]],pop[c].vision,"none"]
+        if offspring[5] > -.3:
+            offspring[5] = -.3
+        pop[cvariables[0]] = Creature(offspring[0],offspring[1],offspring[2],offspring[3],offspring[4],offspring[5],offspring[6],offspring[7],offspring[8])
+        cvariables.remove(cvariables[0])
+        
+        
+    if frames % 200 == 1:
+        sizes = []
+        speeds = []
+        for c in pop.keys():
+            sizes.append(pop[c].size)
+            speeds.append(pop[c].speed)
+
+
+    pygame.font.init()
+    myfont = pygame.font.SysFont('Comic Sans MS', 20)
+    textsurface = myfont.render("Population: " + str(len(pop.keys())) + ' '*4 + "Number of deaths: " + str(deaths) + ' '*4 + "Avg size: " + str(round(sum(sizes)/len(sizes),3)) + ' '*4 + "Avg speed: " + str(round(sum(speeds)/len(speeds),3)), False, (255,255,255))
+    screen.blit(textsurface,(0,0))    
+
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            done = True
+
+    pygame.display.flip()
+    clock.tick(60)
